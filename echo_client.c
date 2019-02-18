@@ -58,6 +58,18 @@ uint32_t iclock()
     return (uint32_t)(iclock64() & 0xfffffffful);
 }
 
+//设置非阻塞
+static void setnonblocking(int sockfd) {
+    int flag = fcntl(sockfd, F_GETFL, 0);
+    if (flag < 0) {
+        exit(EXIT_FAILURE);
+        return;
+    }
+    if (fcntl(sockfd, F_SETFL, flag | O_NONBLOCK) < 0) {
+        exit(EXIT_FAILURE);
+    }
+}
+
 #define MAXLINE 2048
 #define LOCAL_IP "127.0.0.1"
 #define LOCAL_PORT 8000
@@ -71,6 +83,10 @@ int udp_output(const char *buf, int len, ikcpcb *kcp, void *user){
     return 0;
 }
 
+pthread_t thread;
+pthread_cond_t cond;
+pthread_mutex_t mutex;
+
 int main(int argc, char *argv[]){
     struct sockaddr_in serveraddr, cliaddr;
     int sockfd, n;
@@ -83,6 +99,8 @@ int main(int argc, char *argv[]){
         printf("socket failed\n");
         exit(EXIT_FAILURE);
     }
+
+    setnonblocking(sockfd);
 
     fd = sockfd;
 
@@ -107,22 +125,21 @@ int main(int argc, char *argv[]){
      while(1){
         uint32_t time1 = iclock();
         ikcp_update(kcp, time1);
-        /*
+        
         memset(recv_buf, 0, MAXLINE);
-        printf("before recvfrom\n");
+        //printf("before recvfrom\n");
         n = recvfrom(sockfd, recv_buf, MAXLINE, 0, (struct sockaddr *)&serveraddr, &addr_len);
-        printf("after recvfrom\n");
         if (n > 0){
+            printf("after recvfrom=%d\n",n);
             ikcp_input(kcp, recv_buf, n);
         }
         int msgLen = ikcp_peeksize(kcp);
-        printf("msgLen=%d\n",msgLen);
         if (msgLen > 0){
+            printf("msgLen=%d\n",msgLen);
             memset(send_buf, 0, MAXLINE);
             ikcp_recv(kcp, send_buf, msgLen);
-            printf("cliend recv %s\n",send_buf);
+            printf("client recv %s\n",send_buf);
         }
-        */
     }
 
     close(sockfd);
